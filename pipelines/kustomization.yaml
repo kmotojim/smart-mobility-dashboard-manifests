@@ -6,4 +6,5 @@ resources:
   - backend-image-build-pipeline.yaml
   - frontend-sonarqube-pipeline.yaml
   - backend-sonarqube-pipeline.yaml
+  - backend-ci-pipeline.yaml
   - pvc.yaml

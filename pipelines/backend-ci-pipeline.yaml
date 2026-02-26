@@ -1,0 +1,243 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: backend-ci-pipeline
+  namespace: smart-mobility-dev
+spec:
+  description: |
+    バックエンドの単体テスト、SonarQube静的解析、イメージビルド・プッシュを行うCIパイプライン
+  params:
+    - name: GIT_URL
+      type: string
+      default: https://github.com/kmotojim/smart-mobility-dashboard.git
+      description: ソースコードを取得するGitリポジトリのURL
+    - name: GIT_REVISION
+      type: string
+      default: main
+      description: Gitのブランチまたはリビジョン
+    - name: SOURCE_PATH
+      type: string
+      default: backend
+      description: 解析対象のソースコードのパス
+    - name: SONAR_HOST_URL
+      type: string
+      default: http://docker-sonarqube-git.sonarqube.svc.cluster.local:9000
+      description: SonarQubeサーバーのURL
+    - name: SONAR_PROJECT_KEY
+      type: string
+      description: SonarQubeのプロジェクトキー
+    - name: SONAR_TOKEN
+      type: string
+      description: SonarQubeの認証トークン
+    - name: DOCKERFILE_PATH
+      type: string
+      default: ./backend/Dockerfile
+      description: Dockerfileのパス
+    - name: INTERNAL_REGISTRY_URL
+      type: string
+      default: image-registry.openshift-image-registry.svc:5000/smart-mobility-dev/smart-mobility-backend
+      description: コピー元の内部レジストリのURL
+    - name: EXTERNAL_REGISTRY_URL
+      type: string
+      default: quay.io/rh_ee_kmotojim/smart-mobility-backend
+      description: コピー先の外部レジストリのURL
+    - name: IMAGE_TAG
+      type: string
+      default: latest
+      description: イメージのタグ
+  workspaces:
+    - name: workspace
+      description: ソースコードを格納するワークスペース
+  tasks:
+    - name: git-clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: URL
+          value: $(params.GIT_URL)
+        - name: REVISION
+          value: $(params.GIT_REVISION)
+        - name: DELETE_EXISTING
+          value: "true"
+        - name: DEPTH
+          value: "1"
+      workspaces:
+        - name: output
+          workspace: workspace
+    - name: unit-test
+      runAfter:
+        - git-clone
+      params:
+        - name: SOURCE_PATH
+          value: $(params.SOURCE_PATH)
+      taskSpec:
+        params:
+          - name: SOURCE_PATH
+            type: string
+        workspaces:
+          - name: source
+        results:
+          - name: test-result
+            description: テスト結果のサマリー
+        steps:
+          - name: run-unit-tests
+            image: docker.io/library/maven:3.9-eclipse-temurin-21
+            workingDir: $(workspaces.source.path)/$(params.SOURCE_PATH)
+            script: |
+              #!/usr/bin/env bash
+              set -e
+
+              echo "=========================================="
+              echo "Running Unit Tests for Backend"
+              echo "=========================================="
+
+              mvn test -B
+
+              echo "=========================================="
+              echo "Unit Tests Completed Successfully"
+              echo "=========================================="
+
+              # テスト結果のサマリーを出力
+              if [ -d "target/surefire-reports" ]; then
+                echo ""
+                echo "=== Test Summary ==="
+                grep -h "Tests run:" target/surefire-reports/*.txt 2>/dev/null || echo "No test summary found"
+              fi
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: sonarqube-scan
+      runAfter:
+        - unit-test
+      params:
+        - name: SONAR_HOST_URL
+          value: $(params.SONAR_HOST_URL)
+        - name: SONAR_PROJECT_KEY
+          value: $(params.SONAR_PROJECT_KEY)
+        - name: SONAR_TOKEN
+          value: $(params.SONAR_TOKEN)
+        - name: SOURCE_PATH
+          value: $(params.SOURCE_PATH)
+      taskSpec:
+        params:
+          - name: SONAR_HOST_URL
+            type: string
+          - name: SONAR_PROJECT_KEY
+            type: string
+          - name: SONAR_TOKEN
+            type: string
+          - name: SOURCE_PATH
+            type: string
+        workspaces:
+          - name: source
+        steps:
+          - name: create-sonar-properties
+            image: registry.access.redhat.com/ubi8/ubi-minimal:8.2
+            workingDir: $(workspaces.source.path)/$(params.SOURCE_PATH)
+            script: |
+              #!/usr/bin/env bash
+              set -e
+
+              echo "Creating sonar-project.properties for Java/Quarkus project..."
+
+              cat > sonar-project.properties << EOF
+              sonar.projectKey=$(params.SONAR_PROJECT_KEY)
+              sonar.projectName=$(params.SONAR_PROJECT_KEY)
+              sonar.projectVersion=1.0
+              sonar.sources=src/main/java
+              sonar.tests=src/test/java
+              sonar.java.binaries=target/classes
+              sonar.java.test.binaries=target/test-classes
+              sonar.junit.reportPaths=target/surefire-reports
+              sonar.exclusions=**/target/**
+              sonar.sourceEncoding=UTF-8
+              sonar.host.url=$(params.SONAR_HOST_URL)
+              sonar.token=$(params.SONAR_TOKEN)
+              EOF
+
+              echo "=== sonar-project.properties ==="
+              cat sonar-project.properties
+          - name: sonar-scan
+            image: docker.io/sonarsource/sonar-scanner-cli:latest
+            workingDir: $(workspaces.source.path)/$(params.SOURCE_PATH)
+            command:
+              - sonar-scanner
+            args:
+              - -Dsonar.projectBaseDir=$(workspaces.source.path)/$(params.SOURCE_PATH)
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: buildah
+      runAfter:
+        - sonarqube-scan
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: buildah
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: IMAGE
+          value: $(params.INTERNAL_REGISTRY_URL):$(params.IMAGE_TAG)
+        - name: DOCKERFILE
+          value: $(params.DOCKERFILE_PATH)
+        - name: CONTEXT
+          value: $(params.SOURCE_PATH)
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: FORMAT
+          value: oci
+        - name: BUILD_ARGS
+          value:
+            - ""
+        - name: BUILD_EXTRA_ARGS
+          value: ""
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+        - name: TLS_VERIFY
+          value: "true"
+        - name: VERBOSE
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: skopeo-copy
+      runAfter:
+        - buildah
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: skopeo-copy
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: SOURCE_IMAGE_URL
+          value: docker://$(params.INTERNAL_REGISTRY_URL):$(params.IMAGE_TAG)
+        - name: DESTINATION_IMAGE_URL
+          value: docker://$(params.EXTERNAL_REGISTRY_URL):$(params.IMAGE_TAG)
+        - name: SRC_TLS_VERIFY
+          value: "true"
+        - name: DEST_TLS_VERIFY
+          value: "true"
+        - name: VERBOSE
+          value: "false"
+        - name: ARGS
+          value: ""
+      workspaces:
+        - name: images_url
+          workspace: workspace
