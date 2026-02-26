@@ -4,4 +4,6 @@ kind: Kustomization
 resources:
   - frontend-image-build-pipeline.yaml
   - backend-image-build-pipeline.yaml
+  - frontend-sonarqube-pipeline.yaml
+  - backend-sonarqube-pipeline.yaml
   - pvc.yaml
