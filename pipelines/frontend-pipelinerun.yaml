@@ -1,0 +1,27 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: frontend-image-build-
+  namespace: smart-mobility-dev
+spec:
+  pipelineRef:
+    name: frontend-image-build-pipeline
+  params:
+    - name: GIT_URL
+      value: https://github.com/kmotojim/smart-mobility-dashboard.git
+    - name: GIT_REVISION
+      value: main
+    - name: DOCKERFILE_PATH
+      value: ./frontend/Dockerfile
+    - name: SOURCE_PATH
+      value: ./frontend
+    - name: INTERNAL_REGISTRY_URL
+      value: image-registry.openshift-image-registry.svc:5000/smart-mobility-dev/smart-mobility-frontend
+    - name: EXTERNAL_REGISTRY_URL
+      value: quay.io/rh_ee_kmotojim/smart-mobility-frontend
+    - name: IMAGE_TAG
+      value: latest
+  workspaces:
+    - name: workspace
+      persistentVolumeClaim:
+        claimName: pipeline-workspace-pvc

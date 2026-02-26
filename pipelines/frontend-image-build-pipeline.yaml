@@ -1,0 +1,142 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: frontend-image-build-pipeline
+  namespace: smart-mobility-dev
+spec:
+  params:
+    - name: GIT_URL
+      type: string
+      default: https://github.com/kmotojim/smart-mobility-dashboard.git
+    - name: GIT_REVISION
+      type: string
+      default: main
+    - name: DOCKERFILE_PATH
+      type: string
+      default: ./frontend/Dockerfile
+    - name: SOURCE_PATH
+      type: string
+      default: ./frontend
+    - name: INTERNAL_REGISTRY_URL
+      type: string
+      default: image-registry.openshift-image-registry.svc:5000/smart-mobility-dev/smart-mobility-frontend
+    - name: EXTERNAL_REGISTRY_URL
+      type: string
+      default: quay.io/rh_ee_kmotojim/smart-mobility-frontend
+    - name: IMAGE_TAG
+      type: string
+      default: latest
+  workspaces:
+    - name: workspace
+  tasks:
+    - name: git-clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: URL
+          value: $(params.GIT_URL)
+        - name: REVISION
+          value: $(params.GIT_REVISION)
+        - name: DELETE_EXISTING
+          value: "true"
+        - name: VERBOSE
+          value: "false"
+        - name: SSL_VERIFY
+          value: "true"
+        - name: SUBMODULES
+          value: "true"
+        - name: DEPTH
+          value: "1"
+        - name: SUBDIRECTORY
+          value: ""
+        - name: SPARSE_CHECKOUT_DIRECTORIES
+          value: ""
+        - name: USER_HOME
+          value: /home/git
+        - name: REFSPEC
+          value: ""
+        - name: CRT_FILENAME
+          value: ca-bundle.crt
+        - name: HTTP_PROXY
+          value: ""
+        - name: HTTPS_PROXY
+          value: ""
+        - name: NO_PROXY
+          value: ""
+      workspaces:
+        - name: output
+          workspace: workspace
+    - name: buildah
+      runAfter:
+        - git-clone
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: buildah
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: IMAGE
+          value: $(params.INTERNAL_REGISTRY_URL):$(params.IMAGE_TAG)
+        - name: DOCKERFILE
+          value: $(params.DOCKERFILE_PATH)
+        - name: CONTEXT
+          value: $(params.SOURCE_PATH)
+        - name: STORAGE_DRIVER
+          value: vfs
+        - name: FORMAT
+          value: oci
+        - name: BUILD_ARGS
+          value:
+            - ""
+        - name: BUILD_EXTRA_ARGS
+          value: ""
+        - name: PUSH_EXTRA_ARGS
+          value: ""
+        - name: SKIP_PUSH
+          value: "false"
+        - name: TLS_VERIFY
+          value: "true"
+        - name: VERBOSE
+          value: "false"
+      workspaces:
+        - name: source
+          workspace: workspace
+    - name: skopeo-copy
+      runAfter:
+        - buildah
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: skopeo-copy
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: SOURCE_IMAGE_URL
+          value: docker://$(params.INTERNAL_REGISTRY_URL):$(params.IMAGE_TAG)
+        - name: DESTINATION_IMAGE_URL
+          value: docker://$(params.EXTERNAL_REGISTRY_URL):$(params.IMAGE_TAG)
+        - name: SRC_TLS_VERIFY
+          value: "true"
+        - name: DEST_TLS_VERIFY
+          value: "true"
+        - name: VERBOSE
+          value: "false"
+        - name: ARGS
+          value: ""
+      workspaces:
+        - name: images_url
+          workspace: workspace
