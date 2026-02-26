@@ -18,6 +18,9 @@ spec:
         app.kubernetes.io/name: e2e-test
     spec:
       restartPolicy: Never
+      volumes:
+        - name: source
+          emptyDir: {}
       initContainers:
         - name: wait-for-app
           image: registry.access.redhat.com/ubi8/ubi-minimal:8.9
@@ -27,7 +30,6 @@ spec:
             - |
               echo "=== Waiting for application to be ready ==="
               
-              # frontendとbackendのServiceが応答するまで待機
               max_attempts=60
               attempt=0
               
@@ -65,12 +67,33 @@ spec:
               fi
               
               echo "=== All services are ready! ==="
+        - name: git-clone
+          image: docker.io/alpine/git:latest
+          volumeMounts:
+            - name: source
+              mountPath: /workspace
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Cloning repository..."
+              git clone --depth 1 https://github.com/kmotojim/smart-mobility-dashboard.git /workspace/repo
+              echo "Clone completed!"
+              ls -la /workspace/repo/e2e-tests/
       containers:
         - name: e2e-test
           image: mcr.microsoft.com/playwright/java:v1.47.0-jammy
           env:
             - name: APP_URL
               value: "http://frontend:8080"
+            - name: HOME
+              value: "/workspace"
+            - name: MAVEN_OPTS
+              value: "-Dmaven.repo.local=/workspace/.m2/repository"
+          volumeMounts:
+            - name: source
+              mountPath: /workspace
+          workingDir: /workspace/repo/e2e-tests
           command:
             - /bin/bash
             - -c
@@ -80,16 +103,6 @@ spec:
               echo "=========================================="
               echo "  E2E Test Execution (ArgoCD PostSync)"
               echo "=========================================="
-              
-              # Gitリポジトリをクローン
-              echo "Cloning repository..."
-              apt-get update -qq && apt-get install -qq -y git > /dev/null 2>&1
-              git clone --depth 1 https://github.com/kmotojim/smart-mobility-dashboard.git /tmp/repo
-              cd /tmp/repo/e2e-tests
-              
-              # Playwrightブラウザをインストール
-              echo "Installing Playwright browsers..."
-              mvn exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install chromium" -q || true
               
               # E2Eテストを実行
               echo ""
@@ -113,14 +126,13 @@ spec:
               
               if [ $TEST_EXIT_CODE -eq 0 ]; then
                 echo ""
-                echo "✓ All E2E tests passed!"
+                echo "All E2E tests passed!"
                 echo ""
               else
                 echo ""
-                echo "✗ Some E2E tests failed!"
+                echo "Some E2E tests failed!"
                 echo ""
                 
-                # テスト結果サマリーを表示
                 if [ -d target/surefire-reports ]; then
                   echo "=== Test Summary ==="
                   cat target/surefire-reports/*.txt 2>/dev/null || true
