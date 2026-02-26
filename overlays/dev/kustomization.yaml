@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: smart-mobility-dev
+
+commonLabels:
+  environment: development
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+patches:
+  - target:
+      kind: Namespace
+      name: smart-mobility
+    patch: |
+      $patch: delete
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: smart-mobility
+
+images:
+  - name: smart-mobility-backend
+    newName: image-registry.openshift-image-registry.svc:5000/smart-mobility-dev/backend
+    newTag: dev
+  - name: smart-mobility-frontend
+    newName: image-registry.openshift-image-registry.svc:5000/smart-mobility-dev/frontend
+    newTag: dev
+
+replicas:
+  - name: smart-mobility-backend
+    count: 1
+  - name: smart-mobility-frontend
+    count: 1

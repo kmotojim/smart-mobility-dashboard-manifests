@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: smart-mobility
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/name: smart-mobility-dashboard
+spec:
+  description: Smart Mobility Dashboard Project
+  sourceRepos:
+    - https://github.com/kmotojim/smart-mobility-dashboard-manifests.git
+  destinations:
+    - namespace: smart-mobility-dev
+      server: https://kubernetes.default.svc
+    - namespace: smart-mobility-prod
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: Service
+    - group: apps
+      kind: Deployment
+    - group: route.openshift.io
+      kind: Route
+  roles:
+    - name: developer
+      description: Developer role
+      policies:
+        - p, proj:smart-mobility:developer, applications, get, smart-mobility/*, allow
+        - p, proj:smart-mobility:developer, applications, sync, smart-mobility/smart-mobility-dashboard-dev, allow
+      groups:
+        - developers
+    - name: admin
+      description: Admin role
+      policies:
+        - p, proj:smart-mobility:admin, applications, *, smart-mobility/*, allow
+      groups:
+        - admins
