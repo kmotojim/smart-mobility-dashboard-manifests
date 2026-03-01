@@ -180,13 +180,16 @@ tkn pipeline start frontend-image-build-pipeline \
 #### SonarQube Pipeline
 
 ```bash
-# CLI経由での実行（PipelineRunファイルのSOAR_TOKENを事前に更新）
-oc create -f pipelines/frontend-sonarqube-pipelinerun.yaml
-oc create -f pipelines/backend-sonarqube-pipelinerun.yaml
-
-# tkn CLI経由での実行
+# tkn CLI経由での実行（推奨）
+# SONAR_TOKENは引数で渡してください（セキュリティのためファイルに含めないでください）
 tkn pipeline start frontend-sonarqube-pipeline \
   -p SONAR_PROJECT_KEY=smart-mobility-frontend \
+  -p SONAR_TOKEN=<your-sonar-token> \
+  -w name=workspace,claimName=pipeline-workspace-pvc \
+  -n smart-mobility-dev
+
+tkn pipeline start backend-sonarqube-pipeline \
+  -p SONAR_PROJECT_KEY=smart-mobility-backend \
   -p SONAR_TOKEN=<your-sonar-token> \
   -w name=workspace,claimName=pipeline-workspace-pvc \
   -n smart-mobility-dev
@@ -195,10 +198,8 @@ tkn pipeline start frontend-sonarqube-pipeline \
 #### CI Pipeline
 
 ```bash
-# CLI経由での実行
-oc create -f pipelines/backend-ci-pipelinerun.yaml
-
-# tkn CLI経由での実行
+# tkn CLI経由での実行（推奨）
+# SONAR_TOKENは引数で渡してください（セキュリティのためファイルに含めないでください）
 tkn pipeline start backend-ci-pipeline \
   -p SONAR_PROJECT_KEY=smart-mobility-backend \
   -p SONAR_TOKEN=<your-sonar-token> \

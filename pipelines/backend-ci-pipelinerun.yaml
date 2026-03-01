@@ -17,8 +17,10 @@ spec:
       value: http://docker-sonarqube-git.sonarqube.svc.cluster.local:9000
     - name: SONAR_PROJECT_KEY
       value: smart-mobility-backend
+    # SONAR_TOKEN: 実行時に tkn コマンドで指定してください
+    # tkn pipeline start backend-ci-pipeline -p SONAR_TOKEN=<your-token> ...
     - name: SONAR_TOKEN
-      value: "<YOUR_SONAR_TOKEN>"
+      value: ""
     - name: DOCKERFILE_PATH
       value: ./backend/Dockerfile
     - name: INTERNAL_REGISTRY_URL
