@@ -150,8 +150,8 @@ spec:
         workspaces:
           - name: source
         steps:
-          - name: create-sonar-properties
-            image: registry.access.redhat.com/ubi8/ubi-minimal:8.2
+          - name: sonar-scan
+            image: docker.io/sonarsource/sonar-scanner-cli:latest
             workingDir: $(workspaces.source.path)/$(params.SOURCE_PATH)
             env:
               - name: SONAR_PROJECT_KEY
@@ -163,44 +163,37 @@ spec:
             script: |
               #!/usr/bin/env bash
               set -e
-
-              echo "Creating sonar-project.properties for Java/Quarkus project..."
-
+              
               echo "=== Checking JaCoCo report ==="
               if [ -f "target/jacoco-report/jacoco.xml" ]; then
                 echo "JaCoCo XML report found!"
                 ls -la target/jacoco-report/
               else
                 echo "WARNING: JaCoCo XML report NOT found!"
-                echo "Contents of target directory:"
                 ls -la target/ 2>/dev/null || echo "target directory not found"
               fi
-
-              cat > sonar-project.properties << EOF
-sonar.projectKey=${SONAR_PROJECT_KEY}
-sonar.projectName=${SONAR_PROJECT_KEY}
-sonar.projectVersion=1.0
-sonar.sources=src/main/java
-sonar.tests=src/test/java
-sonar.java.binaries=target/classes
-sonar.java.test.binaries=target/test-classes
-sonar.junit.reportPaths=target/surefire-reports
-sonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
-sonar.exclusions=**/target/**
-sonar.sourceEncoding=UTF-8
-sonar.host.url=${SONAR_HOST_URL}
-sonar.token=${SONAR_TOKEN}
-EOF
-
-              echo "=== sonar-project.properties ==="
-              cat sonar-project.properties
-          - name: sonar-scan
-            image: docker.io/sonarsource/sonar-scanner-cli:latest
-            workingDir: $(workspaces.source.path)/$(params.SOURCE_PATH)
-            command:
-              - sonar-scanner
-            args:
-              - -Dsonar.projectBaseDir=$(workspaces.source.path)/$(params.SOURCE_PATH)
+              
+              echo ""
+              echo "=== Running SonarQube Scanner ==="
+              sonar-scanner \
+                -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+                -Dsonar.projectName="${SONAR_PROJECT_KEY}" \
+                -Dsonar.projectVersion=1.0 \
+                -Dsonar.sources=src/main/java \
+                -Dsonar.tests=src/test/java \
+                -Dsonar.java.binaries=target/classes \
+                -Dsonar.java.test.binaries=target/test-classes \
+                -Dsonar.junit.reportPaths=target/surefire-reports \
+                -Dsonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml \
+                -Dsonar.exclusions="**/target/**" \
+                -Dsonar.sourceEncoding=UTF-8 \
+                -Dsonar.host.url="${SONAR_HOST_URL}" \
+                -Dsonar.token="${SONAR_TOKEN}" \
+                -Dsonar.qualitygate.wait=true \
+                -Dsonar.qualitygate.timeout=300
+              
+              echo ""
+              echo "=== Quality Gate Passed ==="
       workspaces:
         - name: source
           workspace: workspace
