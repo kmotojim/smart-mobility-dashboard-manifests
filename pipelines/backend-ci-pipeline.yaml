@@ -156,6 +156,7 @@ spec:
               sonar.java.binaries=target/classes
               sonar.java.test.binaries=target/test-classes
               sonar.junit.reportPaths=target/surefire-reports
+              sonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
               sonar.exclusions=**/target/**
               sonar.sourceEncoding=UTF-8
               sonar.host.url=$(params.SONAR_HOST_URL)
