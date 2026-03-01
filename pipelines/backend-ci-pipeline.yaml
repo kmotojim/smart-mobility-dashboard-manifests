@@ -95,13 +95,14 @@ spec:
               set -e
 
               echo "=========================================="
-              echo "Running Unit Tests for Backend"
+              echo "Running Unit Tests and Building JAR"
               echo "=========================================="
 
-              mvn test -B
+              # テスト実行とJARビルドを同時に行う（依存関係のダウンロードは1回のみ）
+              mvn package -B
 
               echo "=========================================="
-              echo "Unit Tests Completed Successfully"
+              echo "Unit Tests and Build Completed Successfully"
               echo "=========================================="
 
               # テスト結果のサマリーを出力
@@ -122,6 +123,11 @@ spec:
                 echo "Checking target directory contents:"
                 ls -la target/ 2>/dev/null || echo "target directory not found"
               fi
+
+              # ビルド成果物の確認
+              echo ""
+              echo "=== Build Artifacts ==="
+              ls -la target/quarkus-app/ 2>/dev/null || echo "quarkus-app directory not found"
       workspaces:
         - name: source
           workspace: workspace
