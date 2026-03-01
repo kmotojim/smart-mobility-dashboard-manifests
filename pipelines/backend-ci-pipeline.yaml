@@ -110,6 +110,18 @@ spec:
                 echo "=== Test Summary ==="
                 grep -h "Tests run:" target/surefire-reports/*.txt 2>/dev/null || echo "No test summary found"
               fi
+
+              # JaCoCoレポートの確認
+              echo ""
+              echo "=== JaCoCo Coverage Report ==="
+              if [ -f "target/jacoco-report/jacoco.xml" ]; then
+                echo "JaCoCo XML report generated successfully!"
+                ls -la target/jacoco-report/
+              else
+                echo "ERROR: JaCoCo XML report was NOT generated!"
+                echo "Checking target directory contents:"
+                ls -la target/ 2>/dev/null || echo "target directory not found"
+              fi
       workspaces:
         - name: source
           workspace: workspace
@@ -147,21 +159,34 @@ spec:
 
               echo "Creating sonar-project.properties for Java/Quarkus project..."
 
-              cat > sonar-project.properties << EOF
-              sonar.projectKey=$(params.SONAR_PROJECT_KEY)
-              sonar.projectName=$(params.SONAR_PROJECT_KEY)
-              sonar.projectVersion=1.0
-              sonar.sources=src/main/java
-              sonar.tests=src/test/java
-              sonar.java.binaries=target/classes
-              sonar.java.test.binaries=target/test-classes
-              sonar.junit.reportPaths=target/surefire-reports
-              sonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
-              sonar.exclusions=**/target/**
-              sonar.sourceEncoding=UTF-8
-              sonar.host.url=$(params.SONAR_HOST_URL)
-              sonar.token=$(params.SONAR_TOKEN)
-              EOF
+              echo "=== Checking JaCoCo report ==="
+              if [ -f "target/jacoco-report/jacoco.xml" ]; then
+                echo "JaCoCo XML report found!"
+                ls -la target/jacoco-report/
+              else
+                echo "WARNING: JaCoCo XML report NOT found!"
+                echo "Contents of target directory:"
+                ls -la target/ 2>/dev/null || echo "target directory not found"
+              fi
+
+              cat > sonar-project.properties << 'SONAR_EOF'
+sonar.projectKey=$(params.SONAR_PROJECT_KEY)
+sonar.projectName=$(params.SONAR_PROJECT_KEY)
+sonar.projectVersion=1.0
+sonar.sources=src/main/java
+sonar.tests=src/test/java
+sonar.java.binaries=target/classes
+sonar.java.test.binaries=target/test-classes
+sonar.junit.reportPaths=target/surefire-reports
+sonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
+sonar.exclusions=**/target/**
+sonar.sourceEncoding=UTF-8
+SONAR_EOF
+
+              # Replace placeholders with actual values
+              sed -i "s|\$(params.SONAR_PROJECT_KEY)|$(params.SONAR_PROJECT_KEY)|g" sonar-project.properties
+              echo "sonar.host.url=$(params.SONAR_HOST_URL)" >> sonar-project.properties
+              echo "sonar.token=$(params.SONAR_TOKEN)" >> sonar-project.properties
 
               echo "=== sonar-project.properties ==="
               cat sonar-project.properties
