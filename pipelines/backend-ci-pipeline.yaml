@@ -153,6 +153,13 @@ spec:
           - name: create-sonar-properties
             image: registry.access.redhat.com/ubi8/ubi-minimal:8.2
             workingDir: $(workspaces.source.path)/$(params.SOURCE_PATH)
+            env:
+              - name: SONAR_PROJECT_KEY
+                value: $(params.SONAR_PROJECT_KEY)
+              - name: SONAR_HOST_URL
+                value: $(params.SONAR_HOST_URL)
+              - name: SONAR_TOKEN
+                value: $(params.SONAR_TOKEN)
             script: |
               #!/usr/bin/env bash
               set -e
@@ -169,9 +176,9 @@ spec:
                 ls -la target/ 2>/dev/null || echo "target directory not found"
               fi
 
-              cat > sonar-project.properties << 'SONAR_EOF'
-sonar.projectKey=$(params.SONAR_PROJECT_KEY)
-sonar.projectName=$(params.SONAR_PROJECT_KEY)
+              cat > sonar-project.properties << EOF
+sonar.projectKey=${SONAR_PROJECT_KEY}
+sonar.projectName=${SONAR_PROJECT_KEY}
 sonar.projectVersion=1.0
 sonar.sources=src/main/java
 sonar.tests=src/test/java
@@ -181,12 +188,9 @@ sonar.junit.reportPaths=target/surefire-reports
 sonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
 sonar.exclusions=**/target/**
 sonar.sourceEncoding=UTF-8
-SONAR_EOF
-
-              # Replace placeholders with actual values
-              sed -i "s|\$(params.SONAR_PROJECT_KEY)|$(params.SONAR_PROJECT_KEY)|g" sonar-project.properties
-              echo "sonar.host.url=$(params.SONAR_HOST_URL)" >> sonar-project.properties
-              echo "sonar.token=$(params.SONAR_TOKEN)" >> sonar-project.properties
+sonar.host.url=${SONAR_HOST_URL}
+sonar.token=${SONAR_TOKEN}
+EOF
 
               echo "=== sonar-project.properties ==="
               cat sonar-project.properties
